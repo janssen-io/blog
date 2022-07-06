@@ -1,0 +1,7 @@
+baseURL = 'https://www.janssen.io'
+languageCode = 'en-us'
+title = 'Stan Janssen'
+theme = "PaperMod"
+
+[params]
+  paginate = 10
