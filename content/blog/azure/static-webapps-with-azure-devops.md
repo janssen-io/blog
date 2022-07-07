@@ -35,6 +35,7 @@ To keep things easy to find, we'll setup the following file tree:
 │ │ ├── index.js
 ├─┬ infra
 │ ├── website.bicep
+│ ├── dns.bicep
 ├─┬ src
 │ ├── index.html
 │ ├── style.css
@@ -42,7 +43,7 @@ To keep things easy to find, we'll setup the following file tree:
 
 * Our Azure Pipeline definition `ci.yml` will be put in the `.azuredevops` directory.
 * Our Azure Functions will be created in the `api` directory.
-* The Bicep template (or templates in the future) will be put in the `infra` directory.
+* The Bicep templates will be put in the `infra` directory.
 * And finally, the source for the static website will be loaded from the `src` directory.
 
 The contents of all the files can be seen on [GitHub](TODO).
@@ -122,10 +123,10 @@ These values are required to configure our DNS records for the custom domain. By
 ## Pipeline definition
 Our pipeline will be responsible for four tasks:
 
-1. Create the Static Web App resource
-2. Setup the DNS records in CloudFlare or Azure DNS (when not set yet)
-3. Build and test our code
-4. Deploy the code
+1. [Create the Static Web App resource](#create-the-static-web-app-resource)
+2. [Setup the DNS records](#setup-the-dns-records)
+3. [Build and test our code](#build-and-test-our-code)
+4. [Deploy the code](#deploy-the-code)
 
 ### Create the Static Web App resource
 Assuming we've setup our [Azure service connection](https://docs.microsoft.com/en-us/azure/devops/pipelines/library/service-endpoints?view=azure-devops&tabs=yaml),
@@ -170,7 +171,7 @@ Then we use the `AzureResourceGroupDeployment` task to compile and apply our Bic
 Afterwards, we take the `deploymentOutputs` stored in `websiteOutput` and convert every individual output (`defaultHostname` and `validationToken`)
 to their own variable.
 
-### Creating or updating DNS records
+### Setup the DNS Records
 Now that we have created the Static Web App and know the Azure generated hostname and validation token, we can create the records at our DNS provider.
 Below, I'll give two examples: [CloudFlare](#cloudflare) and [Azure DNS](#azure-dns). There are many other DNS providers out there that have similar APIs, but I can't cover them all!
 
@@ -258,3 +259,128 @@ stages:
     steps:
       # ...
 ```
+
+To perform the steps listed above, we can use the following [API endpoints](https://api.cloudflare.com/#dns-records-for-a-zone-properties):
+
+- [List DNS records](https://api.cloudflare.com/#dns-records-for-a-zone-list-dns-records): GET zones/:zone/dns_records  
+- [Create DNS records](https://api.cloudflare.com/#dns-records-for-a-zone-list-dns-records): POST zones/:zone/dns_records
+- [Patch DNS records](https://api.cloudflare.com/#dns-records-for-a-zone-patch-dns-record): PATCH zones/:zone/dns_records/:id
+
+For this tutorial, we will use inline scripts, but of course you can put these scripts in separate files so they are easy to reuse.
+
+Below our current steps, we'll add the following:
+
+```yaml
+    # ...
+    steps:
+    - task: AzureResourceGroupDeployment@2
+      # ...
+    - pwsh:
+      # ...
+    - task: AzureResourceGroupDeployment@2
+      # ...
+    - pwsh: |
+        $url = "https://api.cloudflare.com/client/v4/zones/${{ variables.CF_Zone }}/dns_records?name=www.example.com
+        $headers = @{
+          "X-Auth-Email" = "${{ variables.CF_Email }}"
+          "X-Auth-Key" = "${{ variables.CF_API_Key }}"
+        }
+        $records = Invoke-RestMethod `
+          -Uri $url `
+          -Headers $headers `
+          -Method GET `
+          -ContentType application/json `
+          | ConvertFrom-Json
+
+        $cnameRecords = $records.result | where { $_.Type -eq "CNAME" }
+        $txtRecords = $records.result | where { $_.Type -eq "TXT" }
+
+        if ($cnameRecords.Length -gt 0) {
+          Write-Output "##vso[task.setvariable variable=formerCname]$cnameRecords[0].content"
+          Write-Output "##vso[task.setvariable variable=cnameId]$cnameRecords[0].id"
+        }
+
+        if ($txtRecords.Length -gt 0) {
+          Write-Output "##vso[task.setvariable variable=formerValidationToken]$txtRecords[0].content"
+          Write-Output "##vso[task.setvariable variable=txtId]$txtRecords[0].id"
+        }
+      displayName: Get existing records
+
+    - pwsh: |
+        $url = "https://api.cloudflare.com/client/v4/zones/${{ variables.CF_Zone }}/dns_records
+        $headers = @{
+          "X-Auth-Email" = "${{ variables.CF_Email }}"
+          "X-Auth-Key" = "${{ variables.CF_API_Key }}"
+        }
+        $body = @{
+          "type" = "CNAME"
+          "name" = "www.example.com"
+          "content" = "$(defaultHostname)"
+          "ttl" = 3600
+          "proxied" = $True
+        }
+        Invoke-RestMethod `
+          -Uri $url `
+          -Headers $headers `
+          -Method POST `
+          -Body $body `
+          -ContentType application/json
+      displayName: Create new CNAME
+      condition: and(succeeded(), eq(variables.formerCname, ''))
+
+    - pwsh: |
+        $url = "https://api.cloudflare.com/client/v4/zones/${{ variables.CF_Zone }}/dns_records/$(cnameId)"
+        $headers = @{
+          "X-Auth-Email" = "${{ variables.CF_Email }}"
+          "X-Auth-Key" = "${{ variables.CF_API_Key }}"
+        }
+        $body = @{ "content" = "$(defaultHostname)" }
+        Invoke-RestMethod `
+          -Uri $url `
+          -Headers $headers `
+          -Method PATCH `
+          -Body $body `
+          -ContentType application/json
+      displayName: Update CNAME
+      condition: and(
+        succeeded(),
+        ne(variables.formerCname, ''),
+        ne(variables.formerCname, variables.defaultHostname))
+
+    # The two steps for the TXT records are left as an exercise for the reader ;)
+    # Or you can look them up on GitHub.
+``` 
+
+> **Watch out!**
+> 
+> These scripts assume that we only have one record and value for our records. This is not strictly necessary.
+> But in many cases this will be valid. Look critically at your own solution before implementing this.
+
+And that's our first stage done! Let's move on to building and testing our code.
+
+### Build and test our code
+This pipeline YAML is getting quite unwieldy, so let's split the stages up into templates.
+We'll change the `.azuredevops` structure to reflect the following:
+
+```txt
+/
+├─┬ .azuredevops
+│ ├── 0-ci.yml      # the entrypoint / pipeline definition
+│ ├── 1-infra.yml   # the deploy_infra stage template
+│ ├── 2-build.yml   # the build_test stage template
+│ ├── 3-deploy.yml  # the deploy_code stage template
+```
+
+Then we can define our `0-ci.yml` as such:
+
+```yaml
+stages:
+  template: '1-infra.yml'
+  template: '2-build.yml'
+  template: '3-deploy.yml'
+```
+
+Depending on what language you write your API in, you can use different tasks. This project uses JavaScript, so we'll use
+node to build and test our API.
+
+### Deploy the code
