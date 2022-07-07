@@ -1,15 +1,20 @@
 ---
-title: "Static Web Apps with Azure Devops"
-date: 2022-07-06T20:22:57+02:00
-draft: true
+title: "Static Web Apps with Azure DevOps"
+date: 2022-07-10T08:22:57+02:00
+draft: false
 comment_id: 1
 showtoc: true
 ---
 
 Azure Static Web Apps can automatically generate a GitHub workflow and set the secret for you in GitHub. To deploy such an app via Azure DevOps, however, requires a bit more work.
-In this post, I will show you how to setup continuous integration for a static webapp, setup a custom domain with Azure Pipelines.
 
-In future posts, I will show how to add an integrated function and hook it up to Application Insights, test your changes before merging your Pull Request, Bring Your Own Functions and integration with Azure Front Door.
+In this post, I will show you how to setup the infrastructure for a static webapp and how to setup a custom domain with Azure Pipelines.
+
+### Other posts in this series
+- Static Web Apps with Azure DevOps (you are here)
+- Static Web Apps with Azure DevOps - Part 2 (2022-07-17)
+- Static Web Apps: Integrated Functions and App Insights (2022-07-24)
+- Static Web Apps: Pull Request integration (2022-07-31)
 
 ## Solution
 The website we will create will be a simple 'Hello World'-type website; A single html page with a contact form. For a more complex front-end, I suggest starting with the tutorials on [Microsoft Docs](https://docs.microsoft.com/en-us/azure/static-web-apps/deploy-nextjs).
@@ -52,7 +57,7 @@ In this post we will only discuss the contents of the Bicep template and the YAM
 ## Resource definition
 Our static web app has a two requirements:
 - It must be hosted at the custom domain 'example.com' (this post)
-- It must send e-mails without exposing credentials to the public ([next post]({{< ref "/blog/azure/static-webapps-functions-and-app-insights.md" >}} "Next Post"))
+- It must send e-mails without exposing credentials to the public (third post)
 
 Let's start with a very basic Bicep template and expand from there:
 
@@ -356,31 +361,4 @@ Below our current steps, we'll add the following:
 > These scripts assume that we only have one record and value for our records. This is not strictly necessary.
 > But in many cases this will be valid. Look critically at your own solution before implementing this.
 
-And that's our first stage done! Let's move on to building and testing our code.
-
-### Build and test our code
-This pipeline YAML is getting quite unwieldy, so let's split the stages up into templates.
-We'll change the `.azuredevops` structure to reflect the following:
-
-```txt
-/
-├─┬ .azuredevops
-│ ├── 0-ci.yml      # the entrypoint / pipeline definition
-│ ├── 1-infra.yml   # the deploy_infra stage template
-│ ├── 2-build.yml   # the build_test stage template
-│ ├── 3-deploy.yml  # the deploy_code stage template
-```
-
-Then we can define our `0-ci.yml` as such:
-
-```yaml
-stages:
-  template: '1-infra.yml'
-  template: '2-build.yml'
-  template: '3-deploy.yml'
-```
-
-Depending on what language you write your API in, you can use different tasks. This project uses JavaScript, so we'll use
-node to build and test our API.
-
-### Deploy the code
+And that's our first stage done! In the next post, we'll build, test and deploy our code.

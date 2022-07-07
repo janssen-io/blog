@@ -1,7 +1,9 @@
 ---
 title: "Static Webapps Functions and App Insights"
-date: 2022-07-06T22:13:24+02:00
+date: 2022-07-24T08:13:24+02:00
 draft: true
+comment_id: 2
+showtoc: true
 ---
 
 ### Adding App Settings
