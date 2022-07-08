@@ -1,0 +1,25 @@
+stages:
+- stage: deploy_infra 
+  displayName: Deploy Infrastructure
+  jobs:
+  - job: deploy_infra
+    displayName: Deploy SWA and Update DNS
+    steps:
+    - task: AzureResourceGroupDeployment@2
+      displayName: Create Static Web App
+      inputs:
+        azureSubscription: personal
+        action: Create Or Update Resource Group
+        resourceGroupName: blog
+        location: westeurope
+        templateLocation: Linked artifact
+        csmFile: ./infra/website.bicep
+        deploymentMode: Incremental
+        deploymentOutputs: websiteOutput
+
+    - pwsh: |
+        $outputs = "$(websiteOutput)" | ConvertFrom-Json
+        $outputs.PSObject.Properties | ForEach-Object {
+          Write-Output "##vso[task.setvariable variable=$_.Name]$_.Value.value"
+        }
+      displayName: Capture ARM output as variables
