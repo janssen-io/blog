@@ -13,7 +13,7 @@ stages:
         resourceGroupName: blog
         location: westeurope
         templateLocation: Linked artifact
-        csmFile: ./infra/website.bicep
+        csmFile: .azuredevops/infra/website.bicep
         deploymentMode: Incremental
         deploymentOutputs: websiteOutput
 
