@@ -40,6 +40,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           $secrets = az staticwebapp secrets list -n "${{ variables.swaName}}" -g "${{ variables.rgName }}" | ConvertFrom-Json
+          echo $secrets
           Write-Output "##vso[task.setvariable variable=apiKey]$secrets.properties.apiKey"
 
     - pwsh: |
