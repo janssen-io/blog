@@ -1,8 +1,9 @@
+param name string
 param location string = resourceGroup().location
 param customDomains array = []
 
 resource staticWebApp 'Microsoft.Web/staticSites@2021-03-01' = {
-  name: 'jio-blog-swa'
+  name: name
   location: location
   tags: {}
   sku: {
@@ -21,3 +22,4 @@ resource staticWebApp 'Microsoft.Web/staticSites@2021-03-01' = {
 }
 
 output defaultHostname string = staticWebApp.properties.defaultHostname
+output apiToken string = staticWebApp.properties.repositoryToken

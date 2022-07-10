@@ -14,7 +14,7 @@ stages:
         location: westeurope
         templateLocation: Linked artifact
         csmFile: .azuredevops/infra/website.bicep
-        overrideParameters: -customDomains ["www.janssen.io"]
+        overrideParameters: -customDomains ["www.janssen.io"] -name "jio-blog-swa"
         deploymentMode: Incremental
         deploymentOutputs: websiteOutput
 
@@ -24,3 +24,22 @@ stages:
           Write-Output "##vso[task.setvariable variable=$_.Name]$_.Value.value"
         }
       displayName: Capture ARM output as variables
+
+    # TODO: setup DNS
+
+    - task: AzureCLI@2
+      displayName: Get API key
+      inputs:
+        azureSubscription: personal
+        scriptType: ps
+        scriptLocation: inlineScript
+        inlineScript: |
+          $secrets = az staticwebapp secrets --list --name "jio-blog-swa" | ConvertFrom-Json
+          Write-Output "##vso[task.setvariable variable=apiKey]$secrets.properties.apiKey"
+
+      - task: AzureStaticWebApp@0
+        inputs:
+          app_location: "."
+          # api_location: api
+          azure_static_web_apps_api_token: $(apiKey)
+                
