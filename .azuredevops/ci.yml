@@ -42,6 +42,9 @@ stages:
           $secrets = az staticwebapp secrets list -n "${{ variables.swaName}}" -g "${{ variables.rgName }}" | ConvertFrom-Json
           Write-Output "##vso[task.setvariable variable=apiKey]$secrets.properties.apiKey"
 
+    - pwsh: |
+        echo $(apiKey)
+
     - task: AzureStaticWebApp@0
       inputs:
         app_location: "."
