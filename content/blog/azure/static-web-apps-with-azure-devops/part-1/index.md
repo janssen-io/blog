@@ -61,11 +61,12 @@ Our static web app has a two requirements:
 
 Let's start with a very basic Bicep template and expand from there:
 
-
 ```Bicep
+param location string = resourceGroup().location
+
 resource staticWebApp 'Microsoft.Web/staticSites@2021-03-01' = {
   name: 'helloWorld'
-  location: resourceGroup().location
+  location: location
   tags: {}
   sku: {
     name: 'Free'
@@ -99,37 +100,53 @@ A custom domain is a subresource of the static webapp. We can define it either a
 I personally find it easiest to use a nested resource, so that's what we will do here!
 
 ```Bicep
+param location string = resourceGroup().location
+param customDomains array = []
+
 resource staticWebApp 'Microsoft.Web/staticSites@2021-03-01' = {
   // name, location, tags, sku, properties
 
-  resource examplecomDomain 'customDomains@2021-03-01' = {
-    name: 'example.com'
-    properties: {
-      validationMethod: 'dns-txt-token'
-    }
-  }
+  resource domains 'customDomains@2021-03-01' = [for fqdn in customDomains: {
+    name: fqdn
+  }]
 }
 
 output defaultHostname string = staticWebApp.properties.defaultHostname
-output validationToken string = staticWebApp::examplecomDomain.properties.validationToken
 ```
 
-First we added a nested resource of the type `Microsoft.Web/staticSites/customDomains`. As it is a nested resource, we do not need to define the parent type.
+First we add a nested resource of the type `Microsoft.Web/staticSites/customDomains`. As it is a nested resource, we do not need to define the parent type.
 I think this is great and makes the template significantly more readable. Especially when adding more sibling resources!
 
-> #### What is this 'validationMethod'?
-> The [docs](https://docs.microsoft.com/en-us/azure/static-web-apps/custom-domain) show that simply setting up your CNAME record is sufficient.
-> I prefer to set a validation token in a TXT record instead.  This allows us to use a proxy such as CloudFlare to shield our origin server.
-> No matter how we reach our static web app, Azure can then always validate the domain is ours.
+Just in case we want to use multiple domains later, we use an array parameter.
+During the initial setup we can leave out the custom domain and once we setup the DNS records we can pass them and redeploy the static web app.
 
-Finally we define two output values: `defaultHostname` and `validationToken`.
-These values are required to configure our DNS records for the custom domain. By specifying them as output values we can easily use them in our pipeline. 
+> #### Alternative Domain Validation method
+> The [docs](https://docs.microsoft.com/en-us/azure/static-web-apps/custom-domain) show that simply setting up your CNAME record is sufficient.
+> You might prefer to set a validation token in a TXT record instead.  This allows you to use a proxy such as CloudFlare to shield our origin server.
+> No matter how we reach our static web app, Azure can then always validate the domain is ours. sdflkjsd
+>
+> ```
+>  resource examplecomDomain 'customDomains@2021-03-01' = {
+>    name: 'example.com'
+>  }
+> ```
+>
+> You can then read the output token by setting an additional output value:
+> ```
+> output validationToken string = staticWebApp::examplecomDomain.properties.validationToken
+> ```
+>
+> Unfortunately, deploying a custom domain this way using a Bicep template results in a catch 22; the deployment will halt until the domain is validated, but to validate the domain you need the token returned by a successful deployment. So for now, we'll validate our domain using CNAME delegation instead.
+
+Finally we define a single output values: `defaultHostname`.
+The default hostname is where we can currently reach our static web app. We will need this value to setup the CNAME record for the custom domain. By specifying them as output values we can easily use them in our pipeline. 
 
 ## Pipeline definition
 Our pipeline will be responsible for four tasks:
 
 1. [Create the Static Web App resource](#create-the-static-web-app-resource)
 2. [Setup the DNS records](#setup-the-dns-records)
+1. [Setup the custom domain](#setup-the-custom-domain)
 3. [Build and test our code](#build-and-test-our-code)
 4. [Deploy the code](#deploy-the-code)
 
@@ -173,11 +190,11 @@ Then we use the `AzureResourceGroupDeployment` task to compile and apply our Bic
 - `azureSubscription`: the name of our service connection
 - `deploymentOutputs`: the name of the variable that will store the outputs, as defined in the bicep file, as a JSON string.
 
-Afterwards, we take the `deploymentOutputs` stored in `websiteOutput` and convert every individual output (`defaultHostname` and `validationToken`)
-to their own variable.
+Afterwards, we take the `deploymentOutputs` stored in `websiteOutput` and convert every individual output (only `defaultHostname` in this example) to their own variable.
 
 ### Setup the DNS Records
-Now that we have created the Static Web App and know the Azure generated hostname and validation token, we can create the records at our DNS provider.
+Now that we have created the Static Web App and know the Azure generated hostname,
+we can create the records at our DNS provider.
 Below, I'll give two examples: [CloudFlare](#cloudflare) and [Azure DNS](#azure-dns). There are many other DNS providers out there that have similar APIs, but I can't cover them all!
 
 #### Azure DNS
@@ -188,44 +205,28 @@ records if they do not exist yet or updating them if they have changed. Consider
 @description('The hostname generated by Azure for the Static Web App')
 param defaultHostname string
 
-@description('The dns-txt-token provided by the Static Web App')
-param validationToken string
-            
 resource zone 'Microsoft.Network/dnsZones@2018-05-01' = {
   name: 'example.com'
   location: 'global'
 
-  resource cnameRecord 'Microsoft.Network/dnsZones/CNAME@2018-05-01' = {
+  resource cnameRecord 'CNAME@2018-05-01' = {
     name: 'www'
     properties: {
       TTL: 3600
-      CNAMERecords: {
+      CNAMERecord: {
         cname: defaultHostname
       }
-    }
-  }
-
-  resource validationRecord 'Microsoft.Network/dnsZones/TXT@2018-05-01' = {
-    name: 'www'
-    properties: {
-      TTL: 3600
-      TXTRecords: [
-        {
-          value: [
-            validationToken
-          ]
-        }
-      ]
     }
   }
 }
 ```
 
 To deploy this template, we add one more step below our PowerShell step.
-This step is similar to the deployment of the Static Web App. Except that we added `overrideParameters` to pass the 
-recently obtained `defaultHostname` and `validationToken` variables to the template.
-Also, we don't need any outputs from this deployment, so we omit the `deploymentOutputs` argument.
-
+This step is similar to the deployment of the Static Web App.
+Except that we added `overrideParameters` to pass the recently obtained 
+`defaultHostname` variables to the template.
+Also, we don't need any outputs from this deployment, so we omit the 
+`deploymentOutputs` argument.
 
 ```yaml
 # ...
@@ -242,7 +243,7 @@ Also, we don't need any outputs from this deployment, so we omit the `deployment
         location: westeurope
         templateLocation: Linked artifact
         csmFile: ../infra/dns.bicep
-        overrideParameters: '-defaultHostname "$(defaultHostname)" -validationToken "$(validationToken)"'
+        overrideParameters: '-defaultHostname "$(defaultHostname)"'
         deploymentMode: Incremental
 ```
 
@@ -298,18 +299,11 @@ Below our current steps, we'll add the following:
           | ConvertFrom-Json
 
         $cnameRecords = $records.result | where { $_.Type -eq "CNAME" }
-        $txtRecords = $records.result | where { $_.Type -eq "TXT" }
 
         if ($cnameRecords.Length -gt 0) {
           Write-Output "##vso[task.setvariable variable=formerCname]$cnameRecords[0].content"
           Write-Output "##vso[task.setvariable variable=cnameId]$cnameRecords[0].id"
         }
-
-        if ($txtRecords.Length -gt 0) {
-          Write-Output "##vso[task.setvariable variable=formerValidationToken]$txtRecords[0].content"
-          Write-Output "##vso[task.setvariable variable=txtId]$txtRecords[0].id"
-        }
-      displayName: Get existing records
 
     - pwsh: |
         $url = "https://api.cloudflare.com/client/v4/zones/${{ variables.CF_Zone }}/dns_records
@@ -351,14 +345,48 @@ Below our current steps, we'll add the following:
         succeeded(),
         ne(variables.formerCname, ''),
         ne(variables.formerCname, variables.defaultHostname))
-
-    # The two steps for the TXT records are left as an exercise for the reader ;)
-    # Or you can look them up on GitHub.
 ``` 
+### Setup the custom domain
+Now that we've setup the DNS record, we can redeploy our Static Web App with the custom domain.
 
-> **Watch out!**
-> 
-> These scripts assume that we only have one record and value for our records. This is not strictly necessary.
-> But in many cases this will be valid. Look critically at your own solution before implementing this.
+```yaml
+    # ...
+    steps:
+    - task: AzureResourceGroupDeployment@2
+      # ...
+    - pwsh:
+      # ...
+    - task: AzureResourceGroupDeployment@2
+      # ...
+    - pwsh:
+      # ...
+    - task: AzureResourceGroupDeployment@2
+      displayName: Deploy Custom Domain
+      inputs:
+        azureSubscription: myAzureServiceConnection
+        action: Create Or Update Resource Group
+        resourceGroupName: staticapp-demo
+        location: westeurope
+        templateLocation: Linked artifact
+        csmFile: ../infra/website.bicep
+        overrideParameters: '-customDomains ["www.example.com"]'
+        deploymentMode: Incremental
+        deploymentOutputs: websiteOutput
+```
 
-And that's our first stage done! In the next post, we'll build, test and deploy our code.
+Alternatively, we could have deployed a smaller Bicep template with just the custom domain. I personally like to have one template for a resource and its child resources.
+
+```Bicep
+param customDomains array = []
+param staticWebAppName string
+
+resource domains 'Microsoft.Web/staticSites/customDomains@2021-03-01' = [for fqdn in customDomains: {
+  name: '${staticWebAppName}/${fqdn}'
+}]
+```
+
+And that's our first stage done! In the next post, we'll build, test and deploy our code. For an overview of the templates, you can checkout the source on GitHub:
+
+- [website.bicep](./files/website.bicep)
+- [dns.bicep](./files/dns.bicep)
+- [ci.yml](./files/ci.yml)

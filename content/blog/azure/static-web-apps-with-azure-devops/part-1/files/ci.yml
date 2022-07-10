@@ -1,0 +1,99 @@
+stages:
+- stage: deploy_infra 
+  displayName: Deploy Infrastructure
+  jobs:
+  - job: deploy_infra
+    displayName: Deploy SWA and Update DNS
+    steps:
+    - task: AzureResourceGroupDeployment@2
+      displayName: Create Static Web App
+      inputs:
+        azureSubscription: myAzureServiceConnection
+        action: Create Or Update Resource Group
+        resourceGroupName: staticapp-demo
+        location: westeurope
+        templateLocation: Linked artifact
+        csmFile: ../infra/website.bicep
+        deploymentMode: Incremental
+        deploymentOutputs: websiteOutput
+
+    - pwsh: |
+        $outputs = "$(websiteOutput)" | ConvertFrom-Json
+        $outputs.PSObject.Properties | ForEach-Object {
+          Write-Output "##vso[task.setvariable variable=$_.Name]$_.Value.value"
+        }
+      displayName: Capture ARM output as variables
+    
+    - pwsh: |
+        $url = "https://api.cloudflare.com/client/v4/zones/${{ variables.CF_Zone }}/dns_records?name=www.example.com
+        $headers = @{
+          "X-Auth-Email" = "${{ variables.CF_Email }}"
+          "X-Auth-Key" = "${{ variables.CF_API_Key }}"
+        }
+        $records = Invoke-RestMethod `
+          -Uri $url `
+          -Headers $headers `
+          -Method GET `
+          -ContentType application/json `
+          | ConvertFrom-Json
+
+        $cnameRecords = $records.result | where { $_.Type -eq "CNAME" }
+
+        if ($cnameRecords.Length -gt 0) {
+          Write-Output "##vso[task.setvariable variable=formerCname]$cnameRecords[0].content"
+          Write-Output "##vso[task.setvariable variable=cnameId]$cnameRecords[0].id"
+        }
+
+    - pwsh: |
+        $url = "https://api.cloudflare.com/client/v4/zones/${{ variables.CF_Zone }}/dns_records
+        $headers = @{
+          "X-Auth-Email" = "${{ variables.CF_Email }}"
+          "X-Auth-Key" = "${{ variables.CF_API_Key }}"
+        }
+        $body = @{
+          "type" = "CNAME"
+          "name" = "www.example.com"
+          "content" = "$(defaultHostname)"
+          "ttl" = 3600
+          "proxied" = $True
+        }
+        Invoke-RestMethod `
+          -Uri $url `
+          -Headers $headers `
+          -Method POST `
+          -Body $body `
+          -ContentType application/json
+      displayName: Create new CNAME
+      condition: and(succeeded(), eq(variables.formerCname, ''))
+
+    - pwsh: |
+        $url = "https://api.cloudflare.com/client/v4/zones/${{ variables.CF_Zone }}/dns_records/$(cnameId)"
+        $headers = @{
+          "X-Auth-Email" = "${{ variables.CF_Email }}"
+          "X-Auth-Key" = "${{ variables.CF_API_Key }}"
+        }
+        $body = @{ "content" = "$(defaultHostname)" }
+        Invoke-RestMethod `
+          -Uri $url `
+          -Headers $headers `
+          -Method PATCH `
+          -Body $body `
+          -ContentType application/json
+      displayName: Update CNAME
+      condition: and(
+        succeeded(),
+        ne(variables.formerCname, ''),
+        ne(variables.formerCname, variables.defaultHostname))
+
+    - task: AzureResourceGroupDeployment@2
+      displayName: Deploy Custom Domain
+      inputs:
+        azureSubscription: myAzureServiceConnection
+        action: Create Or Update Resource Group
+        resourceGroupName: staticapp-demo
+        location: westeurope
+        templateLocation: Linked artifact
+        csmFile: ../infra/website.bicep
+        overrideParameters: '-customDomains ["www.example.com"]'
+        deploymentMode: Incremental
+        deploymentOutputs: websiteOutput
