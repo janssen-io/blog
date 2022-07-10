@@ -10,7 +10,7 @@ stages:
       inputs:
         connectedServiceName: personal
         action: Create Or Update Resource Group
-        resourceGroupName: blog
+        resourceGroupName: jio-blog-rg
         location: westeurope
         templateLocation: Linked artifact
         csmFile: .azuredevops/infra/website.bicep
