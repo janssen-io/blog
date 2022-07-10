@@ -5,7 +5,7 @@ stages:
   - job: deploy_infra
     displayName: Deploy SWA and Update DNS
     steps:
-    - task: AzureResourceGroupDeployment@2
+    - task: AzureResourceManagerTemplateDeployment@3
       displayName: Create Static Web App
       inputs:
         azureSubscription: personal
@@ -37,9 +37,9 @@ stages:
           $secrets = az staticwebapp secrets --list --name "jio-blog-swa" | ConvertFrom-Json
           Write-Output "##vso[task.setvariable variable=apiKey]$secrets.properties.apiKey"
 
-      - task: AzureStaticWebApp@0
-        inputs:
-          app_location: "."
-          # api_location: api
-          azure_static_web_apps_api_token: $(apiKey)
+    - task: AzureStaticWebApp@0
+      inputs:
+        app_location: "."
+        # api_location: api
+        azure_static_web_apps_api_token: $(apiKey)
                 
