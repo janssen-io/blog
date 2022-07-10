@@ -35,8 +35,9 @@ stages:
 - stage: deploy_code 
   displayName: Deploy Code
   jobs:
-    job: deploy_code
+  - job: deploy_code
     displayName: Deploy blog and api
+    steps:
     - task: AzureCLI@2
       displayName: Get API key
       inputs:
