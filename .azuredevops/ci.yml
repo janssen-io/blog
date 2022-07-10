@@ -4,17 +4,22 @@ stages:
   jobs:
   - job: deploy_infra
     displayName: Deploy SWA and Update DNS
+    variables:
+      - name: rgName
+        value: jio-blog-rg
+      - name: swaName
+        value: jio-blog-swa
     steps:
     - task: AzureResourceManagerTemplateDeployment@3
       displayName: Create Static Web App
       inputs:
         connectedServiceName: personal
         action: Create Or Update Resource Group
-        resourceGroupName: jio-blog-rg
+        resourceGroupName: ${{ variables.rgName }}
         location: westeurope
         templateLocation: Linked artifact
         csmFile: .azuredevops/infra/website.bicep
-        overrideParameters: -customDomains ["www.janssen.io"] -name "jio-blog-swa"
+        overrideParameters: -customDomains ["www.janssen.io"] -name "${{ variables.swaName}}"
         deploymentMode: Incremental
         deploymentOutputs: websiteOutput
 
@@ -34,7 +39,7 @@ stages:
         scriptType: pscore
         scriptLocation: inlineScript
         inlineScript: |
-          $secrets = az staticwebapp secrets --list --name "jio-blog-swa" | ConvertFrom-Json
+          $secrets = az staticwebapp secrets list -n "${{ variables.swaName}}" -g "${{ variables.rgName }}" | ConvertFrom-Json
           Write-Output "##vso[task.setvariable variable=apiKey]$secrets.properties.apiKey"
 
     - task: AzureStaticWebApp@0
