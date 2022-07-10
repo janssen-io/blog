@@ -31,7 +31,7 @@ stages:
       displayName: Get API key
       inputs:
         azureSubscription: personal
-        scriptType: ps
+        scriptType: pscore
         scriptLocation: inlineScript
         inlineScript: |
           $secrets = az staticwebapp secrets --list --name "jio-blog-swa" | ConvertFrom-Json
