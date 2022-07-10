@@ -1,14 +1,15 @@
+variables:
+  - name: rgName
+    value: jio-blog-rg
+  - name: swaName
+    value: jio-blog-swa
+
 stages:
 - stage: deploy_infra 
   displayName: Deploy Infrastructure
   jobs:
   - job: deploy_infra
     displayName: Deploy SWA and Update DNS
-    variables:
-      - name: rgName
-        value: jio-blog-rg
-      - name: swaName
-        value: jio-blog-swa
     steps:
     - task: AzureResourceManagerTemplateDeployment@3
       displayName: Create Static Web App
@@ -31,7 +32,11 @@ stages:
       displayName: Capture ARM output as variables
 
     # TODO: setup DNS
-
+- stage: deploy_code 
+  displayName: Deploy Code
+  jobs:
+    job: deploy_code
+    displayName: Deploy blog and api
     - task: AzureCLI@2
       displayName: Get API key
       inputs:
@@ -40,11 +45,7 @@ stages:
         scriptLocation: inlineScript
         inlineScript: |
           $secrets = az staticwebapp secrets list -n "${{ variables.swaName}}" -g "${{ variables.rgName }}" | ConvertFrom-Json
-          echo $secrets
-          Write-Output "##vso[task.setvariable variable=apiKey]$secrets.properties.apiKey"
-
-    - pwsh: |
-        echo $(apiKey)
+          Write-Output "##vso[task.setvariable variable=apiKey;issecret=true]$($secrets.properties.apiKey)"
 
     - task: AzureStaticWebApp@0
       inputs:
