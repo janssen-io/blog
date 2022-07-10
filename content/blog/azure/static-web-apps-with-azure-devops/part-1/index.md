@@ -175,7 +175,7 @@ stages:
         deploymentOutputs: websiteOutput
 
     - pwsh: |
-        $outputs = "$(websiteOutput)" | ConvertFrom-Json
+        $outputs = '$(websiteOutput)' | ConvertFrom-Json
         $outputs.PSObject.Properties | ForEach-Object {
           Write-Output "##vso[task.setvariable variable=$_.Name]$_.Value.value"
         }
