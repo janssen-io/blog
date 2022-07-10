@@ -19,8 +19,9 @@ In this post, I will show you how to setup the infrastructure for a static webap
 ## Solution
 The website we will create will be a simple 'Hello World'-type website; A single html page with a contact form. For a more complex front-end, I suggest starting with the tutorials on [Microsoft Docs](https://docs.microsoft.com/en-us/azure/static-web-apps/deploy-nextjs).
 
-Our website will be hosted on _example.com_ with an API at _example.com/api/sendMail_. 
-The pipeline will first create the resource in a resource group, including the domain, and then deploy the code. Finally it will update our DNS records to allow Azure to verify that we own the domain.
+Our website will be hosted on _www.example.com_ with an API at _www.example.com/api/sendMail_. 
+The pipeline will first create the resource in a resource group,
+setup the domain and then deploy the code.
 
 ## Repository structure
 Let's start with the code for our little website.
@@ -56,7 +57,7 @@ In this post we will only discuss the contents of the Bicep template and the YAM
 
 ## Resource definition
 Our static web app has a two requirements:
-- It must be hosted at the custom domain 'example.com' (this post)
+- It must be hosted at the custom domain 'www.example.com' (this post)
 - It must send e-mails without exposing credentials to the public (third post)
 
 Let's start with a very basic Bicep template and expand from there:
@@ -79,7 +80,7 @@ resource staticWebApp 'Microsoft.Web/staticSites@2021-03-01' = {
 The template above will create a new free Azure Static Web App in our resource group with the name 'helloWorld'. 
 
 > #### How does it know which resource group to deploy to? 
-> That's defined by the way you deploy it. When using the [Azure Resource Group Deployment Task](https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/deploy/azure-resource-group-deployment?view=azure-devops), we specify the name of the resource group to deploy to. Similarly, when using [Azure CLI](https://docs.microsoft.com/en-us/azure/azure-resource-manager/bicep/deploy-cli) or [Azure PowerShell](https://docs.microsoft.com/en-us/azure/azure-resource-manager/bicep/deploy-powershell) we pass the name of the resource group along with the filename of the template.
+> That's defined by the way you deploy it. When using the [Azure Resource Manager Template Deployment Task](https://github.com/microsoft/azure-pipelines-tasks/blob/master/Tasks/AzureResourceManagerTemplateDeploymentV3/README.md), we specify the name of the resource group to deploy to. Similarly, when using [Azure CLI](https://docs.microsoft.com/en-us/azure/azure-resource-manager/bicep/deploy-cli) or [Azure PowerShell](https://docs.microsoft.com/en-us/azure/azure-resource-manager/bicep/deploy-powershell) we pass the name of the resource group along with the filename of the template.
 
 To ensure Azure does not create a GitHub Workflow, we can set the build property `skipGithubActionWorkflowGeneration` to true:
 
@@ -114,7 +115,7 @@ resource staticWebApp 'Microsoft.Web/staticSites@2021-03-01' = {
 output defaultHostname string = staticWebApp.properties.defaultHostname
 ```
 
-First we add a nested resource of the type `Microsoft.Web/staticSites/customDomains`. As it is a nested resource, we do not need to define the parent type.
+We just add a nested resource of the type `Microsoft.Web/staticSites/customDomains`. As it is a nested resource, we do not need to define the parent type.
 I think this is great and makes the template significantly more readable. Especially when adding more sibling resources!
 
 Just in case we want to use multiple domains later, we use an array parameter.
@@ -123,12 +124,15 @@ During the initial setup we can leave out the custom domain and once we setup th
 > #### Alternative Domain Validation method
 > The [docs](https://docs.microsoft.com/en-us/azure/static-web-apps/custom-domain) show that simply setting up your CNAME record is sufficient.
 > You might prefer to set a validation token in a TXT record instead.  This allows you to use a proxy such as CloudFlare to shield our origin server.
-> No matter how we reach our static web app, Azure can then always validate the domain is ours. sdflkjsd
+> No matter how we reach our static web app, Azure can then always validate the domain is ours.
 >
 > ```
->  resource examplecomDomain 'customDomains@2021-03-01' = {
->    name: 'example.com'
->  }
+> resource examplecomDomain 'customDomains@2021-03-01' = {
+>   name: 'www.example.com'
+>   properties: {
+>     validationMethod: 'dns-txt-token'
+>   }
+> }
 > ```
 >
 > You can then read the output token by setting an additional output value:
