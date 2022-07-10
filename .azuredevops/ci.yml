@@ -8,7 +8,7 @@ stages:
     - task: AzureResourceManagerTemplateDeployment@3
       displayName: Create Static Web App
       inputs:
-        azureSubscription: personal
+        connectedServiceName: personal
         action: Create Or Update Resource Group
         resourceGroupName: blog
         location: westeurope

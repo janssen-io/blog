@@ -162,10 +162,10 @@ stages:
   - job: deploy_infra
     displayName: Deploy SWA and Update DNS
     steps:
-    - task: AzureResourceGroupDeployment@2
+    - task: AzureResourceManagerTemplateDeployment@3
       displayName: Create Static Web App
       inputs:
-        azureSubscription: myAzureServiceConnection
+        connectedServiceName: myAzureServiceConnection
         action: Create Or Update Resource Group
         resourceGroupName: staticapp-demo
         location: westeurope
@@ -187,7 +187,7 @@ infrastructure, then stages are the perfect tool to support this. Alternatively,
 
 Then we use the `AzureResourceGroupDeployment` task to compile and apply our Bicep template. The most important arguments are:
 
-- `azureSubscription`: the name of our service connection
+- `connectedServiceName`: the name of our service connection
 - `deploymentOutputs`: the name of the variable that will store the outputs, as defined in the bicep file, as a JSON string.
 
 Afterwards, we take the `deploymentOutputs` stored in `websiteOutput` and convert every individual output (only `defaultHostname` in this example) to their own variable.
@@ -230,14 +230,14 @@ Also, we don't need any outputs from this deployment, so we omit the
 
 ```yaml
 # ...
-    - task: AzureResourceGroupDeployment@2
+    - task: AzureResourceManagerTemplateDeployment@3
       # ...
     - pwsh:
       # ...
-    - task: AzureResourceGroupDeployment@2
+    - task: AzureResourceManagerTemplateDeployment@3
       displayName: Create DNS records
       inputs:
-        azureSubscription: myAzureServiceConnection
+        connectedServiceName: myAzureServiceConnection
         action: Create Or Update Resource Group
         resourceGroupName: staticapp-demo
         location: westeurope
@@ -279,11 +279,11 @@ Below our current steps, we'll add the following:
 ```yaml
     # ...
     steps:
-    - task: AzureResourceGroupDeployment@2
+    - task: AzureResourceManagerTemplateDeployment@3
       # ...
     - pwsh:
       # ...
-    - task: AzureResourceGroupDeployment@2
+    - task: AzureResourceManagerTemplateDeployment@3
       # ...
     - pwsh: |
         $url = "https://api.cloudflare.com/client/v4/zones/${{ variables.CF_Zone }}/dns_records?name=www.example.com
@@ -352,18 +352,18 @@ Now that we've setup the DNS record, we can redeploy our Static Web App with the
 ```yaml
     # ...
     steps:
-    - task: AzureResourceGroupDeployment@2
+    - task: AzureResourceManagerTemplateDeployment@3
       # ...
     - pwsh:
       # ...
-    - task: AzureResourceGroupDeployment@2
+    - task: AzureResourceManagerTemplateDeployment@3
       # ...
     - pwsh:
       # ...
-    - task: AzureResourceGroupDeployment@2
+    - task: AzureResourceManagerTemplateDeployment@3
       displayName: Deploy Custom Domain
       inputs:
-        azureSubscription: myAzureServiceConnection
+        connectedServiceName: myAzureServiceConnection
         action: Create Or Update Resource Group
         resourceGroupName: staticapp-demo
         location: westeurope

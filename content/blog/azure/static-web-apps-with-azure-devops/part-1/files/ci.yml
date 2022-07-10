@@ -5,10 +5,10 @@ stages:
   - job: deploy_infra
     displayName: Deploy SWA and Update DNS
     steps:
-    - task: AzureResourceGroupDeployment@2
+    - task: AzureResourceManagerTemplateDeployment@3
       displayName: Create Static Web App
       inputs:
-        azureSubscription: myAzureServiceConnection
+        connectedServiceName: myAzureServiceConnection
         action: Create Or Update Resource Group
         resourceGroupName: staticapp-demo
         location: westeurope
@@ -85,10 +85,10 @@ stages:
         ne(variables.formerCname, ''),
         ne(variables.formerCname, variables.defaultHostname))
 
-    - task: AzureResourceGroupDeployment@2
+    - task: AzureResourceManagerTemplateDeployment@3
       displayName: Deploy Custom Domain
       inputs:
-        azureSubscription: myAzureServiceConnection
+        connectedServiceName: myAzureServiceConnection
         action: Create Or Update Resource Group
         resourceGroupName: staticapp-demo
         location: westeurope
