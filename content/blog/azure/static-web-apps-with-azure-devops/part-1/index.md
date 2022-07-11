@@ -10,12 +10,6 @@ Azure Static Web Apps can automatically generate a GitHub workflow and set the s
 
 In this post, I will show you how to setup the infrastructure for a static webapp and how to setup a custom domain with Azure Pipelines.
 
-### Other posts in this series
-- Static Web Apps with Azure DevOps (you are here)
-- Static Web Apps with Azure DevOps - Part 2 (2022-07-17)
-- Static Web Apps: Integrated Functions and App Insights (2022-07-24)
-- Static Web Apps: Pull Request integration (2022-07-31)
-
 ## Solution
 The website we will create will be a simple 'Hello World'-type website; A single html page with a contact form. For a more complex front-end, I suggest starting with the tutorials on [Microsoft Docs](https://docs.microsoft.com/en-us/azure/static-web-apps/deploy-nextjs).
 

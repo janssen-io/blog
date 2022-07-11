@@ -1,0 +1,6 @@
+- [x] Static Web Apps with Azure DevOps - Part 1 (infra)
+- [ ] Static Web Apps with Azure DevOps - Part 2 (content code)
+- [ ] Static Web Apps: Integrated Functions and App Insights
+- [ ] Static Web Apps: Pull Request integration
+- [ ] Static Web Apps: Comments with GitHub issues
+- [ ] Static Web Apps: API Manager integration
