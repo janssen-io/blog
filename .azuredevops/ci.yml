@@ -38,6 +38,9 @@ stages:
   - job: deploy_code
     displayName: Deploy blog and api
     steps:
+    - checkout: self
+      submodules: true  # true so Hugo theme submodule is checked out
+
     - task: AzureCLI@2
       displayName: Get API key
       inputs:
@@ -48,9 +51,17 @@ stages:
           $secrets = az staticwebapp secrets list -n "${{ variables.swaName}}" -g "${{ variables.rgName }}" | ConvertFrom-Json
           Write-Output "##vso[task.setvariable variable=apiKey;issecret=true]$($secrets.properties.apiKey)"
 
+    - script: wget https://github.com/gohugoio/hugo/releases/download/v0.101.0/hugo_0.101.0_Linux-64bit.deb -O '$(Pipeline.Workspace)/hugo.deb'
+      displayName: Download Hugo
+
+    - script: sudo dpkg -i $(Pipeline.Workspace)/hugo.deb
+      displayName: Install Hugo
+
     - task: AzureStaticWebApp@0
       inputs:
-        app_location: "."
+        app_location: '/'
+        app_build_command: 'hugo -D'
+        output_location: '/public'
         # api_location: api
         azure_static_web_apps_api_token: $(apiKey)
                 
