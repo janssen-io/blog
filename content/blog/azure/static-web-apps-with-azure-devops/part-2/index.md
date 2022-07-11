@@ -6,9 +6,7 @@ comment_id: 2
 showtoc: true
 ---
 
-In the first part 
-The contents of all the files can be seen on [GitHub](TODO).
-
+(Work in Progress)
 
 ### Build and test our code
 This pipeline YAML is getting quite unwieldy, so let's split the stages up into templates.
