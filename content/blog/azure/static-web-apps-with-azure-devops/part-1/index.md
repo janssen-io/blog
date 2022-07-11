@@ -52,7 +52,8 @@ To keep things easy to find, we'll setup the following file tree:
 * The Bicep templates will be put in the `infra` directory.
 * And finally, the source for the static website will be loaded from the `src` directory.
 
-The contents of all the files can be seen on [GitHub](TODO).
+The contents of all the files can be seen on
+[GitHub](https://github.com/janssen-io/blog/tree/main/content/blog/azure/static-web-apps-with-azure-devops/part-1/files).
 In this post we will only discuss the contents of the Bicep template and the YAML pipeline.
 
 ## Resource definition
@@ -389,7 +390,10 @@ resource domains 'Microsoft.Web/staticSites/customDomains@2021-03-01' = [for fqd
 }]
 ```
 
-And that's our first stage done! In the next post, we'll build, test and deploy our code. For an overview of the templates, you can checkout the source on GitHub:
+And that's our first stage done! In the next post, we'll build, test and deploy our code.
+For an overview of the templates, you can checkout the source on
+[GitHub](https://github.com/janssen-io/blog/tree/main/content/blog/azure/static-web-apps-with-azure-devops/part-1/files)
+or on this site:
 
 - [website.bicep](./files/website.bicep)
 - [dns.bicep](./files/dns.bicep)
